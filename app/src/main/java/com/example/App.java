@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import com.mysql.cj.jdbc.MysqlDataSource;
+import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.mapper.reflect.ConstructorMapper;
 
@@ -15,9 +16,12 @@ import javax.sql.DataSource;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
-import java.time.LocalDate;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Collectors;
@@ -34,6 +38,15 @@ docker run -d --restart always --name mysql \
 public class App {
     public static void main(String[] args) throws IOException {
 
+        // Instance of DataSource interface allows creating new connections to database.
+        DataSource ds = createDataSource();
+        // Jdbi class uses DataSource to create connections to DB but takes care of life-cycle of the connection.
+        // It closes connection for us after we executed SQL query. It's important because DBs limit number of connections
+        // clients can make to it.
+        Jdbi jdbi = Jdbi.create(ds);
+
+        /*
+
         // For the sake of example CSV file contains two columns:
         //  1,John
         //  2,Mary
@@ -44,12 +57,6 @@ public class App {
         // 2) convert all items to simple List.
         List<Integer> employeeIds = parseCsvFile(fileName).map(row -> Integer.parseInt(row.get("id"))).collect(Collectors.toList());
 
-        // Instance of DataSource interface allows creating new connections to database.
-        DataSource ds = createDataSource();
-        // Jdbi class uses DataSource to create connections to DB but takes care of life-cycle of the connection.
-        // It closes connection for us after we executed SQL query. It's important because DBs limit number of connections
-        // clients can make to it.
-        Jdbi jdbi = Jdbi.create(ds);
 
         // walk through all employees and do some work for them.
         for (Integer employeeId : employeeIds) {
@@ -62,6 +69,28 @@ public class App {
             // Execute another program. This method blocks our program until it finishes.
             Runtime.getRuntime().exec("System specific command line text here");
         }
+
+        */
+
+        ////
+        Set<Integer> idsToCheck = readIdsFromFile("input.csv");
+        String joined = idsToCheck.stream().map(Object::toString).collect(Collectors.joining(","));
+
+        try (Handle handle = jdbi.open()) {
+            List<Integer> zzz = handle.createQuery("select distinct id from employees where id not in (:ids)")
+                    .bind("ids", joined)
+                    .mapTo(Integer.TYPE)
+                    .collect(Collectors.toList());
+            System.out.println(zzz);
+        } catch (Throwable ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private static Set<Integer> readIdsFromFile(String filePath) throws IOException {
+        return Files.lines(Path.of(filePath), StandardCharsets.UTF_8)
+                .map(line -> Integer.parseInt(line.trim()))
+                .collect(Collectors.toSet());
     }
 
     private static Stream<Map<String, String>> parseCsvFile(String fileName) throws IOException {
