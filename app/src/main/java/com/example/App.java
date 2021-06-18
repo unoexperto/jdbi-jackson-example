@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import com.mysql.cj.jdbc.MysqlDataSource;
+import org.apache.commons.collections4.SetUtils;
 import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.mapper.reflect.ConstructorMapper;
@@ -15,6 +16,7 @@ import org.jdbi.v3.core.mapper.reflect.ConstructorMapper;
 import javax.sql.DataSource;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -73,19 +76,32 @@ public class App {
         */
 
         ////
-        Set<Integer> idsToCheck = readIdsFromFile("input.csv");
-        String joined = idsToCheck.stream().map(Object::toString).collect(Collectors.joining(","));
+        Map<Integer, Long> idsToCheck = readIdsFromFile("input.csv");
+
+        // Write to file deduplicated IDs.
+        try (PrintWriter writer = new PrintWriter("ids_clean.csv", StandardCharsets.UTF_8)) {
+            for (int id : idsToCheck.keySet())
+                writer.println(id);
+        }
+
+        // Write to files IDs that appeared more than once.
+        try (PrintWriter writer = new PrintWriter("ids_duplicates.csv", StandardCharsets.UTF_8)) {
+            for (Map.Entry<Integer, Long> pair: idsToCheck.entrySet()) {
+                if (pair.getValue() > 1)
+                    writer.println(pair.getKey());
+            }
+        }
+
+        String joined = idsToCheck.keySet().stream().map(Object::toString).collect(Collectors.joining(","));
 
         try (Handle handle = jdbi.open()) {
-            List<Integer> foundIds = handle.createQuery("select distinct id from employees where id in (:ids)")
+            Set<Integer> foundIds = handle.createQuery("select distinct id from employees where id in (:ids)")
                     .bind("ids", joined)
                     .mapTo(Integer.TYPE)
-                    .collect(Collectors.toList());
-
-            idsToCheck.removeAll(foundIds);
+                    .collect(Collectors.toSet());
 
             System.out.println("Missing IDs:");
-            for (int id: idsToCheck) {
+            for (int id: SetUtils.difference(idsToCheck.keySet(), foundIds)) {
                 System.out.println(id);
             }
         } catch (Throwable ex) {
@@ -93,10 +109,10 @@ public class App {
         }
     }
 
-    private static Set<Integer> readIdsFromFile(String filePath) throws IOException {
+    private static Map<Integer, Long> readIdsFromFile(String filePath) throws IOException {
         return Files.lines(Path.of(filePath), StandardCharsets.UTF_8)
                 .map(line -> Integer.parseInt(line.trim()))
-                .collect(Collectors.toSet());
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }
 
     private static Stream<Map<String, String>> parseCsvFile(String fileName) throws IOException {

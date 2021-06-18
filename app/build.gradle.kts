@@ -23,6 +23,7 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.11.2")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-csv:2.11.2")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.11.2")
+    implementation("org.apache.commons:commons-collections4:4.4")
 
 //    implementation("org.jdbi:jdbi3-postgres:3.19.0")
     implementation("org.jdbi:jdbi3-json:3.20.0")
