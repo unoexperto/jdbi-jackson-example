@@ -77,11 +77,17 @@ public class App {
         String joined = idsToCheck.stream().map(Object::toString).collect(Collectors.joining(","));
 
         try (Handle handle = jdbi.open()) {
-            List<Integer> zzz = handle.createQuery("select distinct id from employees where id not in (:ids)")
+            List<Integer> foundIds = handle.createQuery("select distinct id from employees where id in (:ids)")
                     .bind("ids", joined)
                     .mapTo(Integer.TYPE)
                     .collect(Collectors.toList());
-            System.out.println(zzz);
+
+            idsToCheck.removeAll(foundIds);
+
+            System.out.println("Missing IDs:");
+            for (int id: idsToCheck) {
+                System.out.println(id);
+            }
         } catch (Throwable ex) {
             ex.printStackTrace();
         }
