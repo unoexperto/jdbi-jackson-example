@@ -77,7 +77,7 @@ public class App {
         */
 
         ////
-        Map<Integer, Long> idsToCheck = Collections.singletonMap(1, 1L); //  readIdsFromFile("input.csv");
+        Map<Integer, Long> idsToCheck = readIdsFromFile("input.csv");
 
         Set<Integer> ids = idsToCheck.keySet();
 
