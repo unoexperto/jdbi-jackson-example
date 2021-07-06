@@ -144,7 +144,14 @@ public class App {
 
     private static Map<Integer, Long> readIdsFromFile(String filePath) throws IOException {
         return Files.lines(Path.of(filePath), StandardCharsets.UTF_8)
-                .map(line -> Integer.parseInt(line.trim()))
+                .map(line -> {
+                    try {
+                        return Integer.parseInt(line.trim());
+                    } catch (Throwable ex) {
+                        return 0;
+                    }
+                })
+                .filter(id -> id > 0)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     }
 
