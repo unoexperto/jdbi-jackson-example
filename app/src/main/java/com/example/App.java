@@ -21,6 +21,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ docker run -d --restart always --name mysql \
 */
 
 public class App {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, SQLException {
 
         // Instance of DataSource interface allows creating new connections to database.
         DataSource ds = createDataSource();
@@ -210,12 +211,14 @@ public class App {
         return map;
     }
 
-    private static DataSource createDataSource() {
+    private static DataSource createDataSource() throws SQLException {
         MysqlDataSource ds = new MysqlDataSource();
         ds.setUser("root");
         ds.setPassword("Random123");
         ds.setServerName("localhost");
         ds.setDatabaseName("anon");
+        ds.setRequireSSL(true);
+        ds.setUseSSL(true);
         return ds;
     }
 }
