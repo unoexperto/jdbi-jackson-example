@@ -21,6 +21,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,7 +77,39 @@ public class App {
         */
 
         ////
-        Map<Integer, Long> idsToCheck = readIdsFromFile("input.csv");
+        Map<Integer, Long> idsToCheck = Collections.singletonMap(1, 1L); //  readIdsFromFile("input.csv");
+
+        Set<Integer> ids = idsToCheck.keySet();
+
+        String joined = ids.stream().map(Object::toString).collect(Collectors.joining(","));
+
+        try (Handle handle = jdbi.open()) {
+
+            handle.registerRowMapper(ConstructorMapper.factory(EmployeeEvents.class));
+
+            String query =
+                    "select employee_id, group_concat(name, ',', unix_timestamp(occurred_at) separator ';') as events_str\n" +
+                    "                           from membership_events\n" +
+                    "                           where name is not null and occurred_at is not null and employee_id in (:ids)\n" +
+                    "                           group by employee_id";
+
+            List<EmployeeEvents> events = handle.createQuery(query)
+                    .bind("ids", joined)
+                    .mapTo(EmployeeEvents.class)
+                    .collect(Collectors.toList());
+
+            System.out.println("Employees with incorrect order of membership events:");
+            for (EmployeeEvents event: events)
+                if (!event.isValid())
+                    System.out.println(event.employeeId);
+        } catch (Throwable ex) {
+            ex.printStackTrace();
+        }
+
+//        cleanEmployeesIds(jdbi, idsToCheck);
+    }
+
+    private static void cleanEmployeesIds(Jdbi jdbi, Map<Integer, Long> idsToCheck) throws IOException {
 
         // Write to file deduplicated IDs.
         try (PrintWriter writer = new PrintWriter("ids_clean.csv", StandardCharsets.UTF_8)) {
@@ -86,7 +119,7 @@ public class App {
 
         // Write to files IDs that appeared more than once.
         try (PrintWriter writer = new PrintWriter("ids_duplicates.csv", StandardCharsets.UTF_8)) {
-            for (Map.Entry<Integer, Long> pair: idsToCheck.entrySet()) {
+            for (Map.Entry<Integer, Long> pair : idsToCheck.entrySet()) {
                 if (pair.getValue() > 1)
                     writer.println(pair.getKey());
             }
@@ -101,7 +134,7 @@ public class App {
                     .collect(Collectors.toSet());
 
             System.out.println("Missing IDs:");
-            for (int id: SetUtils.difference(idsToCheck.keySet(), foundIds)) {
+            for (int id : SetUtils.difference(idsToCheck.keySet(), foundIds)) {
                 System.out.println(id);
             }
         } catch (Throwable ex) {
