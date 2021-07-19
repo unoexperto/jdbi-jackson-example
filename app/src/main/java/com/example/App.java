@@ -22,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -112,21 +111,19 @@ public class App {
 
     private static void cleanEmployeesIds(Jdbi jdbi, Map<Integer, Long> idsToCheck) throws IOException {
 
+        Set<Integer> inputIds = idsToCheck.keySet();
+
         // Write to file deduplicated IDs.
-        try (PrintWriter writer = new PrintWriter("ids_clean.csv", StandardCharsets.UTF_8)) {
-            for (int id : idsToCheck.keySet())
-                writer.println(id);
-        }
+        printIdsToFile(idsToCheck.keySet(), "ids_unique_dirty.csv");
 
         // Write to files IDs that appeared more than once.
-        try (PrintWriter writer = new PrintWriter("ids_duplicates.csv", StandardCharsets.UTF_8)) {
-            for (Map.Entry<Integer, Long> pair : idsToCheck.entrySet()) {
-                if (pair.getValue() > 1)
-                    writer.println(pair.getKey());
-            }
-        }
+        printIdsToFile(
+                idsToCheck.entrySet().stream()
+                        .filter(pair -> pair.getValue() > 1)
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toSet()), "ids_duplicates.csv");
 
-        String joined = idsToCheck.keySet().stream().map(Object::toString).collect(Collectors.joining(","));
+        String joined = inputIds.stream().map(Object::toString).collect(Collectors.joining(","));
 
         try (Handle handle = jdbi.open()) {
             Set<Integer> foundIds = handle.createQuery("select distinct id from employees where id in (:ids)")
@@ -134,12 +131,18 @@ public class App {
                     .mapTo(Integer.TYPE)
                     .collect(Collectors.toSet());
 
-            System.out.println("Missing IDs:");
-            for (int id : SetUtils.difference(idsToCheck.keySet(), foundIds)) {
-                System.out.println(id);
-            }
+            printIdsToFile(SetUtils.difference(inputIds, foundIds), "ids_missing_in_db.csv");
+            printIdsToFile(foundIds, "ids_clean.csv");
+
         } catch (Throwable ex) {
             ex.printStackTrace();
+        }
+    }
+
+    private static void printIdsToFile(Set<Integer> integerSet, String fileName) throws IOException {
+        try (PrintWriter writer = new PrintWriter(fileName, StandardCharsets.UTF_8)) {
+            for (int id : integerSet)
+                writer.println(id);
         }
     }
 
