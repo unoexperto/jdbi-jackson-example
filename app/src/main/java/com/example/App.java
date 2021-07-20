@@ -114,24 +114,33 @@ public class App {
         Set<Integer> inputIds = idsToCheck.keySet();
 
         // Write to file deduplicated IDs.
-        printIdsToFile(idsToCheck.keySet(), "ids_unique_dirty.csv");
+//        printIdsToFile(idsToCheck.keySet(), "ids_unique_dirty.csv");
 
         // Write to files IDs that appeared more than once.
-        printIdsToFile(
-                idsToCheck.entrySet().stream()
-                        .filter(pair -> pair.getValue() > 1)
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toSet()), "ids_duplicates.csv");
+        final Set<Integer> dupsInInput = idsToCheck.entrySet().stream()
+                .filter(pair -> pair.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+
+        if (!dupsInInput.isEmpty()) {
+            System.out.println("Found duplicates in input file:");
+            for (int id : dupsInInput)
+                System.out.println(id);
+        }
 
         String joined = inputIds.stream().map(Object::toString).collect(Collectors.joining(","));
 
         try (Handle handle = jdbi.open()) {
-            Set<Integer> foundIds = handle.createQuery("select distinct id from employees where id in (:ids)")
-                    .bind("ids", joined)
+            Set<Integer> foundIds = handle.createQuery("select distinct id from employees where id in (" + joined + ")")
                     .mapTo(Integer.TYPE)
                     .collect(Collectors.toSet());
 
-            printIdsToFile(SetUtils.difference(inputIds, foundIds), "ids_missing_in_db.csv");
+            SetUtils.SetView<Integer> missingInDb = SetUtils.difference(inputIds, foundIds);
+            if (!missingInDb.isEmpty()) {
+                System.out.println("Found IDs that do NOT exist in DB:");
+                for (int id : missingInDb)
+                    System.out.println(id);
+            }
             printIdsToFile(foundIds, "ids_clean.csv");
 
         } catch (Throwable ex) {
